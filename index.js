@@ -78,7 +78,8 @@ async function main() {
   console.log('\n🚀 PRJX LP Manager starting...');
   validateConfig();
 
-  // Start Telegram command listener (/status /fees /history)
+  // Register "/" command menu and start listener
+  await tg.registerCommands();
   tg.startCommandListener(readAllPositions, log.getHistory);
 
   // Notify Telegram on startup

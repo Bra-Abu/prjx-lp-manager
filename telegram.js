@@ -116,6 +116,25 @@ function alertStartup(positionIds) {
   );
 }
 
+// ── Register "/" command menu with Telegram ────────────────────────────────────
+async function registerCommands() {
+  const bot = getBot();
+  if (!bot) return;
+  try {
+    await bot.setMyCommands([
+      { command: 'status',  description: 'Live position status & fees' },
+      { command: 'fees',    description: 'Accrued fees across all positions' },
+      { command: 'weekly',  description: 'Fees claimed in the last 7 days' },
+      { command: 'monthly', description: 'Fees claimed in the last 30 days' },
+      { command: 'alltime', description: 'Total fees claimed all time' },
+      { command: 'history', description: 'Last 10 bot actions' },
+    ]);
+    console.log('[Telegram] Commands registered (/ menu active).');
+  } catch (err) {
+    console.error('[Telegram] Failed to register commands:', err.message);
+  }
+}
+
 // ── Interactive Command Listener ───────────────────────────────────────────────
 function startCommandListener(getPositionsFn, getHistoryFn) {
   if (!isConfigured()) return;
@@ -247,5 +266,6 @@ module.exports = {
   alertSwappedToUSDT,
   alertError,
   alertStartup,
+  registerCommands,
   startCommandListener,
 };
