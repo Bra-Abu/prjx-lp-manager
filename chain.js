@@ -1,5 +1,5 @@
 // PRJX LP Manager — Chain Connection (HyperEVM)
-const { ethers } = require('ethers');
+const { ethers, NonceManager } = require('ethers');
 const config = require('./config');
 
 let _provider = null;
@@ -18,7 +18,9 @@ function getProvider() {
 function getSigner() {
   if (!_signer) {
     if (!config.privateKey) throw new Error('PRIVATE_KEY not set in .env');
-    _signer = new ethers.Wallet(config.privateKey, getProvider());
+    const wallet = new ethers.Wallet(config.privateKey, getProvider());
+    // NonceManager tracks pending nonces so sequential txns don't reuse the same nonce
+    _signer = new NonceManager(wallet);
   }
   return _signer;
 }
