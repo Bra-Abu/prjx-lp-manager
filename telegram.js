@@ -93,6 +93,15 @@ function alertSwappedToUSDT(pos, usdtAmount, txHash) {
   );
 }
 
+function alertFeesAvailable(pos) {
+  return send(
+    `💰 <b>Fees Ready — #${pos.tokenId}</b>\n` +
+    `Pool: ${pos.sym0}/${pos.sym1}\n` +
+    `Unclaimed: <b>$${pos.totalFeesUSD.toFixed(4)}</b>\n` +
+    `(${pos.fees0Human.toFixed(6)} ${pos.sym0} + ${pos.fees1Human.toFixed(6)} ${pos.sym1})`
+  );
+}
+
 function alertError(positionId, action, error) {
   return send(
     `❌ <b>Error — #${positionId}</b>\n` +
@@ -240,6 +249,7 @@ module.exports = {
   isConfigured,
   send,
   alertFeesCollected,
+  alertFeesAvailable,
   alertOutOfRange,
   alertRebalanced,
   alertNearBoundary,

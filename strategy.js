@@ -80,16 +80,8 @@ async function executeDecisions(pos, decisions) {
 
     switch (decision.action) {
       case 'claim_fees':
-        if (pos.totalFeesUSD > 0.001) {
-          try {
-            const txHash = await executor.collectFees(pos);
-            await tg.alertFeesCollected(pos, pos.totalFeesUSD, txHash);
-          } catch (e) {
-            await tg.alertError(pos.tokenId, 'claim_fees', e.message);
-          }
-        } else {
-          console.log(`[#${pos.tokenId}] Skipping claim — fees too small ($${pos.totalFeesUSD.toFixed(6)})`);
-        }
+        await tg.alertFeesAvailable(pos);
+        console.log(`[#${pos.tokenId}] 💰 Fees available: $${pos.totalFeesUSD.toFixed(4)} — notified via Telegram.`);
         break;
 
       case 'rebalance':
@@ -133,15 +125,6 @@ async function executeDecisions(pos, decisions) {
 // ── Main Strategy Run ─────────────────────────────────────────────────────────
 async function runStrategy(positions) {
   for (const pos of positions) {
-    // Drain any fee tokens left in wallet from a previously interrupted swap
-    if (config.strategy.claimFeesAsUSDT) {
-      try {
-        await executor.swapFeesToUSDT(pos);
-      } catch (e) {
-        await tg.alertError(pos.tokenId, 'swap_wallet_tokens', e.message);
-      }
-    }
-
     const decisions = await evaluatePosition(pos);
     if (decisions.length === 0) {
       console.log(`[#${pos.tokenId}] ✓ No action needed. In range: ${pos.inRange}, Fees: $${pos.totalFeesUSD.toFixed(4)}`);
