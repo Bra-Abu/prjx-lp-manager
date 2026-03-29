@@ -133,6 +133,15 @@ async function executeDecisions(pos, decisions) {
 // ── Main Strategy Run ─────────────────────────────────────────────────────────
 async function runStrategy(positions) {
   for (const pos of positions) {
+    // Drain any fee tokens left in wallet from a previously interrupted swap
+    if (config.strategy.claimFeesAsUSDT) {
+      try {
+        await executor.swapFeesToUSDT(pos);
+      } catch (e) {
+        await tg.alertError(pos.tokenId, 'swap_wallet_tokens', e.message);
+      }
+    }
+
     const decisions = await evaluatePosition(pos);
     if (decisions.length === 0) {
       console.log(`[#${pos.tokenId}] ✓ No action needed. In range: ${pos.inRange}, Fees: $${pos.totalFeesUSD.toFixed(4)}`);

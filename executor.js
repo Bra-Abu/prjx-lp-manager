@@ -346,4 +346,4 @@ async function rebalance(pos) {
   }
 }
 
-module.exports = { collectFees, removeLiquidity, mintNewPosition, rebalance };
+module.exports = { collectFees, swapFeesToUSDT, removeLiquidity, mintNewPosition, rebalance };
