@@ -153,6 +153,16 @@ function startCommandListener(getPositionsFn, getHistoryFn) {
   const bot = getBot();
   if (!bot) return;
 
+  // Register commands so they appear when user types "/" in Telegram
+  bot.setMyCommands([
+    { command: 'fees',    description: 'Unclaimed fee balances across all positions' },
+    { command: 'status',  description: 'Live position status (price, range, fees)' },
+    { command: 'weekly',  description: 'Fees claimed in the last 7 days' },
+    { command: 'monthly', description: 'Fees claimed in the last 30 days' },
+    { command: 'alltime', description: 'All-time fees claimed' },
+    { command: 'history', description: 'Last 10 bot actions' },
+  ]).catch(err => console.error('[Telegram] Failed to set commands:', err.message));
+
   // /status — full position snapshot
   bot.onText(/\/status/, async (msg) => {
     if (String(msg.chat.id) !== String(_chatId)) return;
