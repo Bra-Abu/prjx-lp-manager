@@ -80,16 +80,8 @@ async function executeDecisions(pos, decisions) {
 
     switch (decision.action) {
       case 'claim_fees':
-        if (pos.totalFeesUSD > 0.001) {
-          try {
-            const txHash = await executor.collectFees(pos);
-            await tg.alertFeesCollected(pos, pos.totalFeesUSD, txHash);
-          } catch (e) {
-            await tg.alertError(pos.tokenId, 'claim_fees', e.message);
-          }
-        } else {
-          console.log(`[#${pos.tokenId}] Skipping claim — fees too small ($${pos.totalFeesUSD.toFixed(6)})`);
-        }
+        await tg.alertFeesAvailable(pos);
+        console.log(`[#${pos.tokenId}] 💰 Fees available: $${pos.totalFeesUSD.toFixed(4)} — notified via Telegram.`);
         break;
 
       case 'rebalance':

@@ -30,16 +30,38 @@ function slippage(amount, bps = 50) {
 }
 
 // HyperEVM gas settings — use explicit gas price to avoid underpriced errors
-async function gasOpts(extraGas = 0n) {
+async function gasOpts(extraGas = 0n, priceMult = 2n) {
   const provider = chain.getProvider();
   const feeData = await provider.getFeeData();
-  // Use 2× the suggested gas price to ensure inclusion on HyperEVM
-  const gasPrice = (feeData.gasPrice || 1_000_000_000n) * 2n;
+  // Use priceMult× the suggested gas price to ensure inclusion on HyperEVM
+  const gasPrice = (feeData.gasPrice || 1_000_000_000n) * priceMult;
   return { gasPrice, gasLimit: 400_000n + extraGas };
 }
 
 // Wait a short time between sequential txns to avoid nonce collisions
 function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
+
+// Send a transaction with automatic gas bump retries on REPLACEMENT_UNDERPRICED.
+// fn receives a gas-opts object and must return a transaction promise.
+async function sendTx(fn, extraGas = 0n) {
+  const MAX_RETRIES = 3;
+  let priceMult = 2n;
+  for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
+    try {
+      const opts = await gasOpts(extraGas, priceMult);
+      return await fn(opts);
+    } catch (err) {
+      const isUnderpriced = err.code === 'REPLACEMENT_UNDERPRICED' ||
+        err.info?.error?.code === -32603;
+      if (isUnderpriced && attempt < MAX_RETRIES) {
+        priceMult = priceMult * 13n / 10n; // bump ~30% each retry
+        await sleep(1000);
+        continue;
+      }
+      throw err;
+    }
+  }
+}
 
 // ── Collect Fees ──────────────────────────────────────────────────────────────
 // Collects all accrued fees for a position.
@@ -61,7 +83,7 @@ async function collectFees(pos) {
 
   let tx;
   try {
-    tx = await pm.collect(collectParams, await gasOpts());
+    tx = await sendTx(opts => pm.collect(collectParams, opts));
     await tx.wait();
 
     log.action(pos.tokenId, 'claim_fees', {
@@ -121,13 +143,11 @@ async function swapFeesToUSDT(pos) {
 
     try {
       // Approve router
-      const gas = await gasOpts();
-      const approveTx = await tokenContract.approve(SWAP_ROUTER_ADDRESS, bal, gas);
+      const approveTx = await sendTx(opts => tokenContract.approve(SWAP_ROUTER_ADDRESS, bal, opts));
       await approveTx.wait();
       await sleep(2000); // brief pause before next tx to avoid nonce collision
 
-      const swapGas = await gasOpts(100_000n);
-      const tx = await router.exactInputSingle({
+      const tx = await sendTx(opts => router.exactInputSingle({
         tokenIn: token,
         tokenOut: config.tokens.USDT0,
         fee: pos.fee,
@@ -136,7 +156,7 @@ async function swapFeesToUSDT(pos) {
         amountIn: bal,
         amountOutMinimum: 0n,
         sqrtPriceLimitX96: 0n,
-      }, swapGas);
+      }, opts), 100_000n);
 
       const receipt = await tx.wait();
 
@@ -199,17 +219,17 @@ async function removeLiquidity(pos, percentToRemove = 100) {
       deadline: deadline(),
     };
 
-    const tx = await pm.decreaseLiquidity(decreaseParams, await gasOpts(100_000n));
+    const tx = await sendTx(opts => pm.decreaseLiquidity(decreaseParams, opts), 100_000n);
     const receipt = await tx.wait();
     await sleep(2000);
 
     // Now collect the tokens out
-    const collectTx = await pm.collect({
+    const collectTx = await sendTx(opts => pm.collect({
       tokenId: pos.tokenId,
       recipient: chain.getSigner().address,
       amount0Max: MAX_UINT128,
       amount1Max: MAX_UINT128,
-    }, await gasOpts());
+    }, opts));
     await collectTx.wait();
 
     log.action(pos.tokenId, 'remove_liquidity', {
@@ -264,12 +284,11 @@ async function mintNewPosition(pos, currentPrice, rangePercent) {
   console.log(`[#${pos.tokenId}] Available: ${ethers.formatUnits(bal0, pos.dec0)} ${pos.sym0}, ${ethers.formatUnits(bal1, pos.dec1)} ${pos.sym1}`);
 
   try {
-    const gas = await gasOpts();
     // Approve position manager to spend tokens
-    const ap0 = await t0.approve(config.contracts.positionManager, bal0, gas);
+    const ap0 = await sendTx(opts => t0.approve(config.contracts.positionManager, bal0, opts));
     await ap0.wait();
     await sleep(2000);
-    const ap1 = await t1.approve(config.contracts.positionManager, bal1, gas);
+    const ap1 = await sendTx(opts => t1.approve(config.contracts.positionManager, bal1, opts));
     await ap1.wait();
     await sleep(2000);
 
@@ -287,7 +306,7 @@ async function mintNewPosition(pos, currentPrice, rangePercent) {
       deadline: deadline(),
     };
 
-    const tx = await pm.mint(mintParams, await gasOpts(200_000n));
+    const tx = await sendTx(opts => pm.mint(mintParams, opts), 200_000n);
     const receipt = await tx.wait();
 
     log.action(pos.tokenId, 'add_liquidity', {
@@ -327,4 +346,4 @@ async function rebalance(pos) {
   }
 }
 
-module.exports = { collectFees, removeLiquidity, mintNewPosition, rebalance };
+module.exports = { collectFees, swapFeesToUSDT, removeLiquidity, mintNewPosition, rebalance };
